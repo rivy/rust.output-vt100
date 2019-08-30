@@ -11,4 +11,5 @@ license = "MIT"
 categories = ["development-tools"]
 
 [dependencies]
-winapi = { version = "0.3.6", features = ["winuser", "winbase", "consoleapi", "processenv"] }
+# winapi = { version = "0.3.6", features = ["consoleapi", "errhandlingapi", "fileapi", "handleapi", "winuser", "winbase"] }
+winapi = { version = "0.3.6", features = ["consoleapi", "fileapi", "handleapi", "winuser", "winbase"] }

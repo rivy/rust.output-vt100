@@ -24,24 +24,48 @@
 
 #[cfg(windows)]
 pub fn try_init() -> Result<(), ()> {
+    // ref: https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences#EXAMPLE_OF_ENABLING_VIRTUAL_TERMINAL_PROCESSING @@ https://archive.is/L7wRJ#76%
+
+    use std::ffi::OsStr;
+    use std::iter::once;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr::null_mut;
     use winapi::shared::minwindef::DWORD;
     use winapi::um::consoleapi::{GetConsoleMode, SetConsoleMode};
-    use winapi::um::processenv::GetStdHandle;
-    use winapi::um::winbase::STD_OUTPUT_HANDLE;
+    // use winapi::um::errhandlingapi::GetLastError;
+    use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
+    use winapi::um::handleapi::INVALID_HANDLE_VALUE;
     use winapi::um::wincon::{DISABLE_NEWLINE_AUTO_RETURN, ENABLE_VIRTUAL_TERMINAL_PROCESSING};
+    use winapi::um::winnt::{FILE_SHARE_WRITE, GENERIC_READ, GENERIC_WRITE};
 
-    let console_out = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
-
+    let console_out_name: Vec<u16> = OsStr::new("CONOUT$").encode_wide().chain(once(0)).collect();
     let mut state: DWORD = 0;
     let mut ret: Result<(), _> = Ok(());
     unsafe {
-        if GetConsoleMode(console_out, &mut state) == 0 {
+        // ref: https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+        // Using `CreateFileW("CONOUT$", ...)` to retrieve the console handle works correctly even if STDOUT and/or STDERR are redirected
+        let console_handle = CreateFileW(
+            console_out_name.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_WRITE,
+            null_mut(),
+            OPEN_EXISTING,
+            0,
+            null_mut(),
+        );
+        if console_handle == INVALID_HANDLE_VALUE {
+            // ret = Err(GetLastError());
+            ret = Err(());
+        }
+        if ret.is_ok() && GetConsoleMode(console_handle, &mut state) == 0 {
+            // ret = Err(GetLastError());
             ret = Err(());
         }
         if ret.is_ok() {
             state |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             state &= !DISABLE_NEWLINE_AUTO_RETURN;
-            if SetConsoleMode(console_out, state) == 0 {
+            if SetConsoleMode(console_handle, state) == 0 {
+                // ret = Err(GetLastError());
                 ret = Err(());
             }
         }
